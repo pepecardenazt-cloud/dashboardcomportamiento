@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis de comportamiento del usuario | Oncomex</title>
+  <meta name="description" content="Panel de control analítico personalizado para el cotizador de Oncomex.">
+  
+  <!-- Google Fonts: Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="./dashboard.css">
+</head>
+<body>
+
+  <!-- Sidebar / Navigation -->
+  <header class="dashboard-header">
+    <div class="header-logo-container">
+      <h1 class="dashboard-title">Análisis de comportamiento del usuario</h1>
+    </div>
+
+    
+    <!-- Segment Filter Selector -->
+    <div class="filter-wrapper">
+      <label for="visitor-selector">Segmentar Visitante:</label>
+      <select id="visitor-selector" class="flat-select">
+        <option value="global">Global (Todos los usuarios)</option>
+        <!-- Injected via JavaScript dynamically -->
+      </select>
+      <button id="btn-generate-report" class="flat-action-btn">✨ Generar Reporte IA</button>
+      <button id="btn-reset-database" class="flat-reset-btn">Restablecer Datos</button>
+    </div>
+  </header>
+
+  <!-- Error / Warning Banner for Empty Config -->
+  <div id="setup-warning" class="warning-banner hide">
+    <div class="warning-icon">⚠️</div>
+    <div class="warning-text">
+      <strong>Firebase no inicializado:</strong> Abre el archivo <code>dashboard.js</code> e ingresa tus credenciales de Firebase en la variable <code>FIREBASE_CONFIG</code> para sincronizar los eventos en tiempo real.
+    </div>
+  </div>
+
+  <main class="dashboard-viewport">
+    
+    <!-- 1. METRICS CARDS OVERVIEW -->
+    <section class="overview-grid">
+      <!-- Visits Card -->
+      <div class="metric-card">
+        <div class="metric-label">Visitantes Únicos</div>
+        <div id="stat-visitors" class="metric-value">0</div>
+        <div class="metric-trend text-teal">Total de usuarios anonimizados</div>
+      </div>
+      <!-- Clicks Card -->
+      <div class="metric-card">
+        <div class="metric-label">Clics Totales Rastreados</div>
+        <div id="stat-clicks" class="metric-value">0</div>
+        <div class="metric-trend text-blue">Coordenadas capturadas</div>
+      </div>
+      <!-- Avg Step Duration Card -->
+      <div class="metric-card">
+        <div class="metric-label">Tiempo Promedio por Paso</div>
+        <div id="stat-avg-time" class="metric-value">0s</div>
+        <div class="metric-trend text-purple">Permanencia por pantalla</div>
+      </div>
+      <!-- Flow Completion Time Card -->
+      <div class="metric-card">
+        <div class="metric-label">Tiempo de Completado del Flujo</div>
+        <div id="stat-avg-completion-main" class="metric-value">0s</div>
+        <div class="metric-trend text-purple">De inicio a fin (promedio)</div>
+      </div>
+      <!-- Success Rate Card -->
+      <div class="metric-card" style="border-left: 4px solid var(--color-green);">
+        <div class="metric-label">Éxito del Flujo</div>
+        <div id="stat-success-rate" class="metric-value">0%</div>
+        <div class="metric-trend text-green">Completaron el flujo completo</div>
+      </div>
+      <!-- Abandon Rate Card -->
+      <div class="metric-card" style="border-left: 4px solid #EF4444;">
+        <div class="metric-label">Tasa de Abandono</div>
+        <div id="stat-abandon-rate" class="metric-value">0%</div>
+        <div class="metric-trend" style="color: #EF4444;">No finalizaron el cotizador</div>
+      </div>
+      <!-- CTR Card -->
+      <div class="metric-card">
+        <div class="metric-label">Tasa de Conversión (CTR)</div>
+        <div id="stat-ctr" class="metric-value">0%</div>
+        <div class="metric-trend text-green">Clic en "Recibir llamada del asesor"</div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN DE MÉTRICAS UX DE DIAGNÓSTICO -->
+    <section class="overview-grid" style="margin-top: -12px;">
+      <!-- Rage Clicks Card -->
+      <div class="metric-card" style="border-left: 4px solid var(--color-purple);">
+        <div class="metric-label">Clics de Rabia (Rage Clicks)</div>
+        <div id="stat-rage-clicks" class="metric-value">0</div>
+        <div class="metric-trend text-purple">Indicadores de frustración</div>
+      </div>
+      <!-- Avg Hesitation Card -->
+      <div class="metric-card" style="border-left: 4px solid var(--color-amber);">
+        <div class="metric-label">Vacilación Promedio</div>
+        <div id="stat-avg-hesitation" class="metric-value">0s</div>
+        <div class="metric-trend text-amber">Tiempo antes de interactuar</div>
+      </div>
+      <!-- Clics Fallidos Card -->
+      <div class="metric-card" style="border-left: 4px solid #EF4444;">
+        <div class="metric-label">Clics Fallidos</div>
+        <div id="stat-dead-clicks" class="metric-value">0%</div>
+        <div class="metric-trend" style="color: #EF4444;">Clics ineficaces sobre total</div>
+      </div>
+      <!-- Backtracking Card -->
+      <div class="metric-card" style="border-left: 4px solid var(--color-brand-blue);">
+        <div class="metric-label">Retrocesos (Backtracks)</div>
+        <div id="stat-backtracks" class="metric-value">0</div>
+        <div class="metric-trend text-blue">Clicks en botón "Volver"</div>
+      </div>
+    </section>
+
+    <!-- 2. CHARTS GRID SECTION -->
+    <section class="charts-grid">
+      
+      <!-- Clicks per screen Bar Chart -->
+      <div class="chart-container span-12">
+        <h3 class="chart-title">Eventos y Clics por Pantalla</h3>
+        <div class="canvas-wrapper">
+          <canvas id="chart-clicks-per-step"></canvas>
+        </div>
+      </div>
+
+      <!-- Time per step Line Chart -->
+      <div class="chart-container span-8">
+        <h3 class="chart-title">Tiempo Promedio de Permanencia por Paso</h3>
+        <div class="canvas-wrapper">
+          <canvas id="chart-time-per-step"></canvas>
+        </div>
+      </div>
+
+      <!-- Hotspots click coordinates distribution table & Visual Heatmap -->
+      <div class="chart-container span-4" style="position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-light); padding-bottom: 12px; margin-bottom: 4px;">
+          <h3 class="chart-title" style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--color-text-darkest);">Mapa de Calor (Heatmap)</h3>
+          <div class="heatmap-toggle-buttons">
+            <button id="btn-heatmap-view-visual" class="compact-tab-btn active">Visual</button>
+            <button id="btn-heatmap-view-table" class="compact-tab-btn">Tabla</button>
+          </div>
+        </div>
+
+        <!-- Visual View Panel -->
+        <div id="heatmap-visual-panel" class="heatmap-panel">
+          <div class="heatmap-controls-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <label for="heatmap-step-selector" style="font-size: 0.75rem; font-weight: 600; color: var(--color-text-medium);">Pantalla:</label>
+            <select id="heatmap-step-selector" class="flat-select compact">
+              <option value="Landing">Landing</option>
+              <option value="1. Nombre">1. Nombre</option>
+              <option value="2. Edad">2. Edad</option>
+              <option value="3. Género">3. Género</option>
+              <option value="4. Motivación">4. Motivación</option>
+              <option value="5. Destinatario">5. Destinatario</option>
+              <option value="6. Beneficiarios">6. Beneficiarios</option>
+              <option value="6.1. Modal Beneficiario">6.1. Modal Beneficiario</option>
+              <option value="7. Datos Contacto">7. Datos Contacto</option>
+              <option value="8. Procesando">8. Procesando</option>
+              <option value="9. Resultados">9. Resultados</option>
+            </select>
+          </div>
+          
+          <div class="heatmap-device-container">
+            <div class="heatmap-device-mock">
+              <div class="device-notch"></div>
+              <div class="heatmap-viewport">
+                <div id="heatmap-wireframe-bg" class="wireframe-bg"></div>
+                <canvas id="heatmap-canvas" width="220" height="300"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table View Panel (hidden by default) -->
+        <div id="heatmap-table-panel" class="heatmap-panel hide">
+          <div class="heatmap-table-container">
+            <table class="flat-table compact">
+              <thead>
+                <tr>
+                  <th>Sector X</th>
+                  <th>Sector Y</th>
+                  <th>Porcentaje</th>
+                  <th>Intensidad</th>
+                </tr>
+              </thead>
+              <tbody id="heatmap-list-body">
+                <!-- Injected via JavaScript dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- First Click Success Rate section -->
+      <div class="chart-container span-12" style="margin-top: 24px;">
+        <h3 class="chart-title" style="display: flex; align-items: center; gap: 8px;">
+          <span>🎯 Tasa de Éxito de Primer Clic (First Click Success Rate) - Recibir llamada</span>
+        </h3>
+        <p style="font-size: 0.8rem; color: var(--color-text-medium); margin-top: -8px; margin-bottom: 20px;">
+          Mide el porcentaje de usuarios cuyo primer clic en la pantalla de resultados fue directamente en el CTA principal ("Recibir llamada del asesor").
+        </p>
+        <div class="fcsr-grid" id="fcsr-cards-container">
+          <!-- Injected dynamically via JavaScript -->
+        </div>
+      </div>
+
+      <!-- Time to First Click section -->
+      <div class="chart-container span-12" style="margin-top: 24px;">
+        <h3 class="chart-title" style="display: flex; align-items: center; gap: 8px;">
+          <span>⏱️ Tiempo hasta el Primer Clic (Time to First Click) por Pantalla</span>
+        </h3>
+        <p style="font-size: 0.8rem; color: var(--color-text-medium); margin-top: -8px; margin-bottom: 20px;">
+          Mide el promedio en segundos desde que carga cada pantalla hasta que el usuario realiza su primera interacción (clic en cualquier input, tarjeta o botón).
+        </p>
+        <div class="ttfc-grid" id="ttfc-cards-container">
+          <!-- Injected dynamically via JavaScript -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 3. DATA TABLES LOGS -->
+    <section class="tables-log-section">
+      
+      <!-- Visitors Segment table -->
+      <div class="log-container">
+        <h3 class="log-title">Segmentación de Visitantes Rastreados</h3>
+        <div class="table-scroll-wrapper">
+          <table class="flat-table">
+            <thead>
+              <tr>
+                <th>ID Visitante</th>
+                <th>Última Pantalla</th>
+                <th>Resolución Pantalla</th>
+                <th>Total de Clics</th>
+                <th>Dispositivo</th>
+                <th>País</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+
+            <tbody id="visitors-table-body">
+              <!-- Injected via JavaScript dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Raw clicks logs table -->
+      <div class="log-container">
+        <h3 class="log-title">Registro en Tiempo Real de Clics</h3>
+        <div class="table-scroll-wrapper">
+          <table class="flat-table">
+            <thead>
+              <tr>
+                <th>Pantalla</th>
+                <th>Coordenadas (X, Y)</th>
+                <th>Elemento</th>
+                <th>Clase / Selector</th>
+                <th>Hora</th>
+              </tr>
+            </thead>
+            <tbody id="clicks-table-body">
+              <!-- Injected via JavaScript dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- UX Survey Responses table -->
+      <div class="log-container" style="grid-column: 1 / -1;">
+        <h3 class="log-title">Respuestas de Encuesta de Satisfacción Final</h3>
+        <div class="table-scroll-wrapper">
+          <table class="flat-table">
+            <thead>
+              <tr>
+                <th>ID Visitante</th>
+                <th>¿Descuento Evidente?</th>
+                <th>¿Entendió Costos? (Likert 1)</th>
+                <th>¿Confianza Asesor? (Likert 2)</th>
+                <th>Varita Mágica / Mejoras</th>
+                <th>Hora</th>
+              </tr>
+            </thead>
+            <tbody id="survey-table-body">
+              <!-- Injected via JavaScript dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Custom Modal de Confirmación y Prevención de Errores -->
+  <div id="confirmation-modal" class="custom-modal-backdrop hide">
+    <div class="custom-modal-card">
+      <div class="modal-icon">⚠️</div>
+      <h3 id="modal-confirm-title" class="modal-title font-semibold">Confirmar Acción</h3>
+      <p id="modal-confirm-desc" class="modal-desc">¿Estás seguro de que deseas continuar con esta operación?</p>
+      
+      <!-- Input de seguridad -->
+      <div id="security-input-container" class="security-input-container">
+        <label for="security-confirm-text" style="display:block; margin-bottom: 6px; font-weight: 500;">Para proceder, escribe <strong id="required-word" style="color: #EF4444;">RESTABLECER</strong>:</label>
+        <input type="text" id="security-confirm-text" class="flat-input" placeholder="Escribe la palabra requerida aquí..." autocomplete="off" />
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 8px;">
+        <button id="btn-modal-cancel" class="btn-secondary">Cancelar</button>
+        <button id="btn-modal-confirm" class="btn-danger" disabled>Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reporte IA Modal -->
+  <div id="report-modal" class="custom-modal-backdrop hide">
+    <div class="custom-modal-card report-modal-card">
+      <div class="report-modal-header">
+        <h3 class="modal-title font-semibold">✨ Reporte de Comportamiento de Usuario</h3>
+        <button id="btn-close-report" class="close-modal-btn">✕</button>
+      </div>
+      
+      <!-- Cargando -->
+      <div id="report-loading-container" class="report-loading-container hide">
+        <div class="spinner"></div>
+        <p id="report-loading-text">Analizando métricas del embudo y comportamiento de usuarios...</p>
+      </div>
+
+      <!-- Contenido del reporte -->
+      <div id="report-content-container" class="report-content-container">
+        <!-- Inyectado dinámicamente -->
+      </div>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button id="btn-copy-report" class="btn-secondary">📋 Copiar Texto</button>
+        <button id="btn-print-report" class="btn-primary">🖨️ Imprimir / Guardar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDNs for Firebase & Chart.js -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Custom Logic -->
+  <script src="./dashboard.js"></script>
+</body>
+</html>
