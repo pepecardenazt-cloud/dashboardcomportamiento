@@ -68,8 +68,20 @@
       <!-- Flow Completion Time Card -->
       <div class="metric-card">
         <div class="metric-label">Tiempo de Completado del Flujo</div>
-        <div id="stat-avg-completion-main" class="metric-value">0s</div>
-        <div class="metric-trend text-purple">De inicio a fin (promedio)</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
+          <div>
+            <div style="font-size: 0.72rem; font-weight: 600; color: var(--color-text-medium); text-transform: uppercase; letter-spacing: 0.5px;">Para mí</div>
+            <div id="stat-avg-completion-individual" class="metric-value" style="font-size: 1.5rem; margin-top: 2px;">0s</div>
+          </div>
+          <div style="border-left: 1px solid var(--color-border); height: 28px; margin: 0 12px; align-self: center;"></div>
+          <div>
+            <div style="font-size: 0.72rem; font-weight: 600; color: var(--color-text-medium); text-transform: uppercase; letter-spacing: 0.5px;">Familiar</div>
+            <div id="stat-avg-completion-family" class="metric-value" style="font-size: 1.5rem; margin-top: 2px;">0s</div>
+          </div>
+        </div>
+        <div class="metric-trend text-purple" style="margin-top: 2px;">Promedio de inicio a fin por camino</div>
+        <!-- Keep hidden main stat for compatibility with any internal code referencing it -->
+        <span id="stat-avg-completion-main" style="display: none;">0s</span>
       </div>
       <!-- Success Rate Card -->
       <div class="metric-card" style="border-left: 4px solid var(--color-green);">

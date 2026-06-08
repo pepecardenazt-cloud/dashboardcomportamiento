@@ -24,6 +24,8 @@
   const statClicks = document.getElementById('stat-clicks');
   const statAvgTime = document.getElementById('stat-avg-time');
   const statAvgCompletionMain = document.getElementById('stat-avg-completion-main');
+  const statAvgCompletionIndividual = document.getElementById('stat-avg-completion-individual');
+  const statAvgCompletionFamily = document.getElementById('stat-avg-completion-family');
   const statCtr = document.getElementById('stat-ctr');
   const statSuccessRate = document.getElementById('stat-success-rate');
   const statAbandonRate = document.getElementById('stat-abandon-rate');
@@ -476,13 +478,64 @@
     statBacktracks.textContent = backtrackEvents.length;
 
     // 9. Tiempo de Finalización Promedio (Flow Completion)
-    const completionEvents = events.filter(e => e.event_type === 'ux_flow_completion');
-    const statAvgCompletion = document.getElementById('stat-avg-completion-time');
+    const completedDurations = [];
+    const individualDurations = [];
+    const familyDurations = [];
     
+    // Group events by visitor_id
+    const eventsByVisitor = {};
+    events.forEach(e => {
+      if (e.visitor_id) {
+        if (!eventsByVisitor[e.visitor_id]) {
+          eventsByVisitor[e.visitor_id] = [];
+        }
+        eventsByVisitor[e.visitor_id].push(e);
+      }
+    });
+
+    for (const id in eventsByVisitor) {
+      const visitorEvents = eventsByVisitor[id];
+      const completionEvent = visitorEvents.find(e => e.event_type === 'ux_flow_completion');
+      const reachedResults = visitorEvents.some(e => normalizeStepNameForFunnel(e.step_name, e) === '9. Resultados');
+      
+      let durationSeconds = 0;
+      if (completionEvent && completionEvent.duration_seconds > 0) {
+        durationSeconds = completionEvent.duration_seconds;
+      } else if (reachedResults) {
+        // Fallback calculation: from earliest event to first event on the results page
+        const sortedEvents = [...visitorEvents].sort((a, b) => a.timestamp - b.timestamp);
+        const earliestTime = sortedEvents[0].timestamp;
+        const firstResultsEvent = sortedEvents.find(e => normalizeStepNameForFunnel(e.step_name, e) === '9. Resultados');
+        if (firstResultsEvent) {
+          const fallbackDuration = parseFloat(((firstResultsEvent.timestamp - earliestTime) / 1000).toFixed(2));
+          if (fallbackDuration > 1) {
+            durationSeconds = fallbackDuration;
+          }
+        }
+      }
+
+      if (durationSeconds > 1) {
+        completedDurations.push(durationSeconds);
+        
+        // Differentiate path: did they visit Step 6 (Beneficiarios)?
+        const visitedStep6 = visitorEvents.some(e => {
+          const stepNorm = normalizeStepNameForFunnel(e.step_name, e);
+          return stepNorm === '6. Beneficiarios' || stepNorm === '6.1. Modal Beneficiario';
+        });
+
+        if (visitedStep6) {
+          familyDurations.push(durationSeconds);
+        } else {
+          individualDurations.push(durationSeconds);
+        }
+      }
+    }
+
+    const statAvgCompletion = document.getElementById('stat-avg-completion-time');
     let avgCompletionStr = '0s';
-    if (completionEvents.length > 0) {
-      const totalCompletion = completionEvents.reduce((acc, curr) => acc + curr.duration_seconds, 0);
-      const avgCompletion = (totalCompletion / completionEvents.length).toFixed(1);
+    if (completedDurations.length > 0) {
+      const totalCompletion = completedDurations.reduce((acc, val) => acc + val, 0);
+      const avgCompletion = (totalCompletion / completedDurations.length).toFixed(1);
       avgCompletionStr = `${avgCompletion}s`;
       
       if (statAvgCompletion) {
@@ -497,6 +550,26 @@
     
     if (statAvgCompletionMain) {
       statAvgCompletionMain.textContent = avgCompletionStr;
+    }
+
+    // Populate split completion times
+    let avgIndividualStr = '-';
+    if (individualDurations.length > 0) {
+      const sum = individualDurations.reduce((acc, val) => acc + val, 0);
+      avgIndividualStr = `${(sum / individualDurations.length).toFixed(1)}s`;
+    }
+
+    let avgFamilyStr = '-';
+    if (familyDurations.length > 0) {
+      const sum = familyDurations.reduce((acc, val) => acc + val, 0);
+      avgFamilyStr = `${(sum / familyDurations.length).toFixed(1)}s`;
+    }
+
+    if (statAvgCompletionIndividual) {
+      statAvgCompletionIndividual.textContent = avgIndividualStr;
+    }
+    if (statAvgCompletionFamily) {
+      statAvgCompletionFamily.textContent = avgFamilyStr;
     }
   }
 
@@ -986,6 +1059,26 @@
         visitorMap[id].completion_time = e.duration_seconds;
       }
     });
+
+    // Fallback completion time calculations for visitors who reached Step 9 but lack a ux_flow_completion event
+    for (const id in visitorMap) {
+      const v = visitorMap[id];
+      if (!v.completion_time) {
+        const visitorEvents = events.filter(e => e.visitor_id === id);
+        const reachedResults = visitorEvents.some(e => normalizeStepNameForFunnel(e.step_name, e) === '9. Resultados');
+        if (reachedResults) {
+          const sortedEvents = [...visitorEvents].sort((a, b) => a.timestamp - b.timestamp);
+          const earliestTime = sortedEvents[0].timestamp;
+          const firstResultsEvent = sortedEvents.find(e => normalizeStepNameForFunnel(e.step_name, e) === '9. Resultados');
+          if (firstResultsEvent) {
+            const fallbackDuration = parseFloat(((firstResultsEvent.timestamp - earliestTime) / 1000).toFixed(2));
+            if (fallbackDuration > 1) {
+              v.completion_time = fallbackDuration;
+            }
+          }
+        }
+      }
+    }
 
     // Convert map to array
     let list = Object.values(visitorMap);
